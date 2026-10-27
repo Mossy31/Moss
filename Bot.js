@@ -1,15 +1,12 @@
 const Mineflayer = require('mineflayer')
-const Pathfinder = require('mineflayer-pathfinder').pathfinder
 const Vec3 = require('vec3').Vec3
 
 const Bot = Mineflayer.createBot({
     host: 'localhost',
     port: 25565,
     username: 'Mario',
-    version: '26.1'
+    version: '1.21.11'
 })
-
-Bot.loadPlugin(Pathfinder)
 
 const mossyBlocksNames = [
     'stone',
@@ -30,7 +27,9 @@ const mossyBlocksNames = [
     'pale_moss_block',
 
     'cave_vines',
-    'cave_vines_plant'
+    'cave_vines_plant',
+
+    'cobblestone'
 ]
 
 const airBlocksNames = ['air', 'void_air', 'cave_air']
@@ -53,14 +52,14 @@ function getPerimeter(Block) {
     ]
     const Blocks = []
 
-    for (Pos of Positions) {
+    for (const Pos of Positions) {
         Blocks.push(Bot.blockAt(Position.plus(Pos)))
     }
 
     return Blocks
 }
 
-async function Break() {
+async function Run() {
     await Bot.waitForChunksToLoad()
 
     // List of Blocks IDs that can be transformed in Moss / And other useful Blocks IDs
@@ -68,22 +67,29 @@ async function Break() {
     const airBlocksIDs = getIDs(airBlocksNames)
     const mossBlockID = Bot.registry.blocksByName['moss_block'].id
     const Location = Bot.entity.position
-    const Range = 4
-    const toConvet = []
+    const Range = 16
+    const toConvert = []
 
-    for (let X = Location.x - Range; X < Location.x + Range; X++) {
-        for (let Y = Location.y - Range; Y < Location.y + Range; Y++) {
-            for (let Z = Location.z - Range; Z < Location.z + Range; Z++) {
+    for (let X = Location.x - Range; X <= Location.x + Range; X++) {
+        for (let Y = Location.y - Range; Y <= Location.y + Range; Y++) {
+            for (let Z = Location.z - Range; Z <= Location.z + Range; Z++) {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
                 const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
                 const Perimeter = getPerimeter(Block)
                 if (mossyBlocksIDs.includes(Block.type)) {
                     if (airBlocksIDs.includes(blockUp.type)) {
-                        for (const pBlock of Perimeter) {
-                            if (pBlock.id == mossBlockID) {
-                                const mossBlockUp = Bot.blockAt(pBlock.position.offset(0, 1, 0))
+                        for (const perimeterBlock of Perimeter) {
+                            if (perimeterBlock.type == mossBlockID) {
+                                const mossBlockUp = Bot.blockAt(perimeterBlock.position.offset(0, 1, 0))
                                 if (airBlocksIDs.includes(mossBlockUp.type)) {
-                                    toConvet.push(pBlock)
+                                    if (!toConvert.some((Block) => {
+                                        if (perimeterBlock.position.equals(Block.position)) {
+                                            return true
+                                        }
+                                        return false
+                                    })) {
+                                        toConvert.push(perimeterBlock)
+                                    }
                                 }
                             }
                         }
@@ -93,23 +99,7 @@ async function Break() {
         }
     }
 
-    console.log(toConvet)
+    console.log(toConvert.length)
 }
 
-Bot.once('spawn', Break)
-
-// let Blocks = Bot.findBlocks({
-//     matching: mossyBlocksIDs,
-//     maxDistance: 4,
-//     useExtraInfo: (Block) => {
-//         if (getIDs(['air', 'cave_air', 'void_air']).includes(Bot.blockAt(Block.position.offset(0, 1, 0)).type)) {
-//             console.log(Block.position)
-//             const Perimeter = getPerimeter(Block)
-//             if (Perimeter.includes(mossID))
-//                 return true
-//         }
-//         return false
-//     },
-//     count: 128,
-//     point: Bot.entity.position
-// })
+Bot.once('spawn', Run)

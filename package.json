@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "mineflayer": "^4.39.0",
-    "mineflayer-pathfinder": "^2.4.5"
+    "@miner-org/mineflayer-baritone": "^4.6.2",
+    "mineflayer": "^4.39.0"
   }
 }
