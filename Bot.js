@@ -67,7 +67,7 @@ async function Run() {
     const airBlocksIDs = getIDs(airBlocksNames)
     const mossBlockID = Bot.registry.blocksByName['moss_block'].id
     const Location = Bot.entity.position
-    const Range = 16
+    const Range = 8
     const toConvert = []
 
     for (let X = Location.x - Range; X <= Location.x + Range; X++) {
