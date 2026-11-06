@@ -5,10 +5,8 @@ const { JumpCalculator } = require('./Pathfinder/dist/mineflayer-specific/moveme
 const { validateLocaleAndSetLanguage, isConstructorDeclaration, OuterExpressionKinds } = require('typescript')
 const { completePath } = require('@miner-org/mineflayer-baritone/src/utils')
 
-const logger = require('node-color-log');
-const { SmartWaypointPlanner } = require('@miner-org/mineflayer-baritone/src/waypoints')
-const Delay = 0
-const moveDelay = 1
+
+
 
 const Bot = Mineflayer.createBot({
     host: 'localhost',
@@ -17,7 +15,25 @@ const Bot = Mineflayer.createBot({
     version: '26.1'
 })
 
-Bot.loadPlugin(createPlugin())
+Bot.once('spawn', Run)
+Bot.on('chat', Fly)
+
+Bot.on('kicked', (Res) => {
+    logger.setLevel("error")
+    logger.log(Res)
+})
+
+//--------------------//
+
+//Creates the logger to set specific colors
+const logger = require('node-color-log');
+const Delay = 0
+const flyDelay = 4
+//Area that the bot Scans
+const Range = 16
+const fillPercent = 75 / 100
+
+const airBlocksNames = ['air', 'void_air', 'cave_air']
 
 const mossyBlocksNames = [
     'stone',
@@ -40,10 +56,13 @@ const mossyBlocksNames = [
     'cave_vines',
     'cave_vines_plant',
 
-    'cobblestone'
+    'cobblestone' // Temporaneo
 ]
 
-const airBlocksNames = ['air', 'void_air', 'cave_air']
+// List of Blocks IDs that can be transformed in Moss / And other ranodm Blocks IDs for Testing
+const mossyBlocksIDs = getIDs(mossyBlocksNames)
+const airBlocksIDs = getIDs(airBlocksNames)
+const mossBlockID = getID('moss_block')
 
 function getIDs(Names) {
     let blocksIDs = []
@@ -53,6 +72,12 @@ function getIDs(Names) {
     return blocksIDs
 }
 
+function getID(Name) {
+    return Bot.registry.blocksByName[Name].id
+}
+
+
+//TODO: Refactor (The moss block should do it not every Block)
 function getPerimeter(Block) {
     const Position = Block.position
     const Numbers = [0, 1, -1, 2, -2]
@@ -73,6 +98,8 @@ function getPerimeter(Block) {
     return Blocks
 }
 
+
+// Just a delay that works with no Physics (Palle)
 async function waitForTicks(Ticks) {
     if (Ticks <= 0) return
     await new Promise((resolve, reject) => {
@@ -89,18 +116,27 @@ async function waitForTicks(Ticks) {
     })
 }
 
-const mossyBlocksIDs = getIDs(mossyBlocksNames)
-const airBlocksIDs = getIDs(airBlocksNames)
-const mossBlockID = Bot.registry.blocksByName['moss_block'].id
 
+function getItem(Name) {
+    Inv = Bot.inventory.slots
+    if (Inv != null)
+        for (Slot of Inv) {
+            if (Slot != null) {
+                if (Slot.type == getID(Name)) {
+                    return Slot
+                }
+            }
+        }
+    return null
+}
+
+//TODO: Refactor
 async function Run() {
     await Bot.waitForChunksToLoad()
 
-    // List of Blocks IDs that can be transformed in Moss / And other useful Blocks IDs
-    const Location = Bot.entity.position
-    logger.bold().color("cyan").log(Location)
-    const Range = 8
-    const fillPercent = 75 / 100
+    const Location = Bot.entity.position.floored()
+    logger.bold().color("cyan").log("-Location :" + Location)
+
     const currentMoss = []
 
     for (let X = Location.x - Range; X <= Location.x + Range; X++) {
@@ -139,90 +175,63 @@ async function Run() {
             }
         }
     }
-
-    logger.log("Lenght: " + currentMoss.length)
-
-    for (Target of currentMoss) {
-        logger.log('Position: ' + Target.Block.position)
-        logger.log('Number: ' + Target.Times)
-    }
 }
 
-const elytraId = Bot.registry.itemsByName['elytra'].id
-
-function Elytra() {
-    Inv = Bot.inventory.slots
-    if (Inv != null)
-        for (Slot of Inv) {
-            if (Slot != null) {
-                if (Slot.type == elytraId) {
-                    return Slot
-                }
-            }
-        }
-    return null
-}
+// Mario vola nessuno sa come Lol :)
 
 async function Fly(User, Msg) {
     if (User == 'elonMuschio' && Msg == 'Fly') {
-        const elytra = Elytra()
+        const elytra = getItem(elytraId)
         if (elytra != null && typeof elytra !== null) {
-            Bot.equip(elytra, 'torso')
+            await Bot.equip(elytra, 'torso')
         } else {
             logger.setLevel("error")
             logger.log("No Elytra in the Inventory")
             return
         }
-        await waitForTicks(2)
-        Bot.setControlState('jump', true)
-        await waitForTicks(2)
-        Bot.setControlState('jump', false)
-        await waitForTicks(2)
         await flyElytra()
-        Bot.physicsEnabled = false
-
-        const Target = Bot.entity.position.floored().add(new Vec3(8, 8, 8))
-
-        logger.color('magenta').bold().italic().log(Target)
-
-        await elytraTo(Target)
-        // await elytraTo(new Vec3(10, 20, 10))
     }
 }
 
-// Bot.once('spawn', Run)
-Bot.on('chat', Fly)
-
-Bot.on('kicked', (Res) => {
-    logger.setLevel("error")
-    logger.log(Res)
-})
-
+// Jump and opens the Elytra
 async function flyElytra() {
+    // TODO: More accurate method to get the State
     if (!Bot.entity.elytraFlying) {
+        await Jump()
         Bot._client.write('entity_action', {
             entityId: Bot.entity.id,
             actionId: Bot.supportFeature('entityActionUsesStringMapper') ? 'start_elytra_flying' : 6
         })
+        Bot.physicsEnabled = false
+        Bot.entity.onGround = false
     }
-    await waitForTicks(8)
 }
 
+async function Jump() {
+    await waitForTicks(1)
+    Bot.setControlState('jump', true)
+    await waitForTicks(1.5)
+    Bot.setControlState('jump', false)
+}
+
+// Mario vola in un quadrato perchè è SCHEMO :(
+
 async function Square() {
-    for (let a = 0; a < 4; a++) {
-        const Vectors = [
-            new Vec3(-1, 0, 0),
-            new Vec3(0, 0, -1),
-            new Vec3(1, 0, 0),
-            new Vec3(0, 0, 1)
-        ]
-        Bot.look(90 * a, 0)
-        for (let b = 0; b < 10; b++) {
-            Bot.entity.position.add(Vectors[a])
-            await waitForTicks(4)
+    const Vectors = [
+        new Vec3(-1, 0, 0),
+        new Vec3(0, 0, -1),
+        new Vec3(1, 0, 0),
+        new Vec3(0, 0, 1)
+    ]
+    for (let Angle = 0; Angle < 4; Angle++) {
+        for (let Step = 0; Step < 10; Step++) {
+            Bot.entity.position.add(Vectors[Angle])
+            await waitForTicks(flyDelay)
         }
     }
 }
+
+// Elytra path Finding ¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸ //
 
 async function elytraTo(Point) {
     const Path = await getPath(Point, 16)
@@ -307,8 +316,8 @@ async function executePath(Path) {
 
 async function botMove(Pos) {
     // Asse Y messo 0.1 perche la hitbox è alta 0.6 
-    Bot.entity.position = Pos.offset(0.5, 0.1, 0.5)
-    await waitForTicks(moveDelay)
+    Bot.entity.position = Pos.offset(0.5, 0.15, 0.5)
+    await waitForTicks(flyDelay)
 }
 
 function isValidPos(Point) {
