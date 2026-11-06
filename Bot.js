@@ -190,6 +190,8 @@ async function Fly(User, Msg) {
             return
         }
         await flyElytra()
+        // Random Tests
+        await elytraTo(Bot.entity.position.offset(16, 4, 16))
     }
 }
 
@@ -232,11 +234,6 @@ async function Square() {
 }
 
 // Elytra path Finding ¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸ //
-
-async function elytraTo(Point) {
-    const Path = await getPath(Point, 16)
-    await executePath(Path)
-}
 
 async function getPath(Point, Radius) {
     logger.setLevel("success")
@@ -306,19 +303,28 @@ async function getPath(Point, Radius) {
 
 }
 
+
 async function executePath(Path) {
-    logger.color('green').log(Path)
     for (let Pos of Path.reverse()) {
-        logger.color("blue").bold().log("Position: " + Pos)
         await botMove(Pos)
     }
 }
 
+// Temporany
 async function botMove(Pos) {
-    // Asse Y messo 0.1 perche la hitbox è alta 0.6 
+    // Asse Y messo 0.15 perche la hitbox è alta 0.6
+    // 0.1 tocca per terra per qualche Motivo
     Bot.entity.position = Pos.offset(0.5, 0.15, 0.5)
     await waitForTicks(flyDelay)
 }
+
+
+async function elytraTo(Point) {
+    const Path = await getPath(Point, 16)
+    await executePath(Path)
+}
+
+//TODO: Check/Refactor
 
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
@@ -348,3 +354,20 @@ function isInRange(Point, Range) {
     logger.color('red').log(Point + " It isn't in range")
     return false
 }
+
+// Mi annoio
+
+/*
+                \||/
+                |  @___oo
+      /\  /\   / (__,,,,|
+     ) /^\) ^\/ _)
+     )   /^\/   _)
+     )   _ /  / _)
+ /\  )/\/ ||  | )_)
+<  >      |(,,) )__)
+ ||      /    \)___)\
+ | \____(      )___) )___
+  \______(_______;;; __;;;
+
+*/
