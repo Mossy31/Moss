@@ -5,9 +5,6 @@ const { JumpCalculator } = require('./Pathfinder/dist/mineflayer-specific/moveme
 const { validateLocaleAndSetLanguage, isConstructorDeclaration, OuterExpressionKinds } = require('typescript')
 const { completePath } = require('@miner-org/mineflayer-baritone/src/utils')
 
-
-
-
 const Bot = Mineflayer.createBot({
     host: 'localhost',
     port: 25565,
@@ -15,11 +12,10 @@ const Bot = Mineflayer.createBot({
     version: '26.1'
 })
 
-Bot.once('spawn', Run)
+Bot.on('chat', Search)
 Bot.on('chat', Fly)
 
 Bot.on('kicked', (Res) => {
-    logger.setLevel("error")
     logger.log(Res)
 })
 
@@ -62,7 +58,7 @@ const mossyBlocksNames = [
 // List of Blocks IDs that can be transformed in Moss / And other ranodm Blocks IDs for Testing
 const mossyBlocksIDs = getIDs(mossyBlocksNames)
 const airBlocksIDs = getIDs(airBlocksNames)
-const mossBlockID = getID('moss_block')
+const mossBlockID = getBlockID('moss_block')
 
 function getIDs(Names) {
     let blocksIDs = []
@@ -72,28 +68,38 @@ function getIDs(Names) {
     return blocksIDs
 }
 
-function getID(Name) {
-    return Bot.registry.blocksByName[Name].id
+function getItemID(Name) {
+    const Item = Bot.registry.itemsByName[Name]
+    if (Item != undefined) {
+        return Item.id
+    }
+    return undefined
 }
 
+function getBlockID(Name) {
+    const Block = Bot.registry.blocksByName[Name]
+    if (Block != undefined) {
+        return Block.id
+    }
+    return undefined
+}
 
 //TODO: Refactor (The moss block should do it not every Block)
 function getPerimeter(Block) {
     const Position = Block.position
     const Numbers = [0, 1, -1, 2, -2]
     const Blocks = []
-    const Positions = []
 
     for (const Num1 of Numbers) {
         for (const Num2 of Numbers) {
             if (Num1 == Num2 && Num1 == 0) continue
-            Positions.push(new Vec3(Num1, 0, Num2))
-            Positions.push(new Vec3(Num1, -1, Num2))
+            Blocks.push(
+                Bot.blockAt(Position.plus(new Vec3(Num1, 0, Num2)))
+            )
+            Blocks.push(
+                Bot.blockAt(Position.plus(new Vec3(Num1, 1, Num2)))
+            )
         }
-    }
-
-    for (const Pos of Positions) {
-        Blocks.push(Bot.blockAt(Position.plus(Pos)))
     }
     return Blocks
 }
@@ -107,12 +113,6 @@ async function waitForTicks(Ticks) {
         setTimeout(() => {
             resolve()
         }, Ticks * 50)
-
-        const Timeout = setTimeout(() => {
-            reject(new Error(`Timeout waiting FOR ${Ticks} TICKS! After ${(Ticks * 50 + 2500)} Millisecons`))
-        }, Ticks * 50 + 2500) // 50ms per tick + 2.5s buffer
-
-
     })
 }
 
@@ -123,6 +123,7 @@ function getItem(Name) {
         for (Slot of Inv) {
             if (Slot != null) {
                 if (Slot.type == getID(Name)) {
+                    logger.log(getItemID(Name))
                     return Slot
                 }
             }
@@ -131,49 +132,43 @@ function getItem(Name) {
 }
 
 //TODO: Refactor
-async function Run() {
+async function Search(User, Msg) {
+    if (User != 'elonMuschio' || Msg != 'Search') return
     await Bot.waitForChunksToLoad()
 
     const Location = Bot.entity.position.floored()
     logger.bold().color("cyan").log("-Location :" + Location)
 
-    const currentMoss = []
+    const toBonemeal = []
+    let toConvert = 0
 
     for (let X = Location.x - Range; X <= Location.x + Range; X++) {
         for (let Y = Location.y - Range; Y <= Location.y + Range; Y++) {
             for (let Z = Location.z - Range; Z <= Location.z + Range; Z++) {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
-                const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
-                const Perimeter = getPerimeter(Block)
-                if (mossyBlocksIDs.includes(Block.type)) {
+                if (Block.type == mossBlockID) {
+                    const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
+                    //logger.bgColor('green').color('black').log("Moss")
                     if (airBlocksIDs.includes(blockUp.type)) {
+                        const Perimeter = getPerimeter(Block)
+                        //logger.bgColor('yellow').color('black').log("Air")
                         for (const perimeterBlock of Perimeter) {
-                            if (perimeterBlock.type == mossBlockID) {
-                                const mossBlockUp = Bot.blockAt(perimeterBlock.position.offset(0, 1, 0))
-                                if (airBlocksIDs.includes(mossBlockUp.type)) {
-
-                                    // Controlla che nessun Blocco abbia la posizione uguale al blocco che si vuole Inserire
-                                    // Some si assciura che l'espressione sia verificata per ogni elemento della Lista
-                                    Result = currentMoss.find((Block) => {
-                                        if (Block.Block.position.equals(perimeterBlock.position)) {
-                                            return true
-                                        }
-                                    })
-                                    if (Result == undefined) {
-                                        currentMoss.push({ "Block": perimeterBlock, "Times": 1 })
-                                        //logger.log("Non c'erano blocchi qui: " + perimeterBlock.position)
-                                    } else {
-                                        Result.Times += 1
-                                        //logger.log("C'erano blocchi qui: " + perimeterBlock.position + " Counter: " + Result.Times)
-                                    }
-
+                            if (mossyBlocksIDs.includes(perimeterBlock.type)) {
+                                const perimeterBlockUp = Bot.blockAt(perimeterBlock.position.offset(0, 1, 0))
+                                if (airBlocksIDs.includes(perimeterBlockUp.type)) {
+                                    toConvert++
                                 }
                             }
                         }
+                        toBonemeal.push({ "Block": Block, "Times": toConvert })
+                        toConvert = 0
                     }
                 }
             }
         }
+    }
+    for (const Moss of toBonemeal) {
+        //logger.color('black').bgColor('red').log("Moss:\n  -Times: " + Moss.Times + "\n  -Block: " + Moss.Block.position.toString())
     }
 }
 
@@ -181,17 +176,16 @@ async function Run() {
 
 async function Fly(User, Msg) {
     if (User == 'elonMuschio' && Msg == 'Fly') {
-        const elytra = getItem(elytraId)
-        if (elytra != null && typeof elytra !== null) {
+        const elytra = getItem('elytra')
+        if (elytra != null) {
             await Bot.equip(elytra, 'torso')
         } else {
-            logger.setLevel("error")
             logger.log("No Elytra in the Inventory")
             return
         }
         await flyElytra()
         // Random Tests
-        await elytraTo(Bot.entity.position.offset(16, 4, 16))
+        await elytraTo(Bot.entity.position.offset(16, 4, 16).floor())
     }
 }
 
@@ -236,7 +230,6 @@ async function Square() {
 // Elytra path Finding ¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸ //
 
 async function getPath(Point, Radius) {
-    logger.setLevel("success")
     logger.color('yellow').bold().log("getPath()...")
     const Positions = [
         new Vec3(1, 0, 0),
@@ -248,7 +241,6 @@ async function getPath(Point, Radius) {
     ]
 
     let Pos = Bot.entity.position
-    logger.setLevel("success")
     logger.color('magenta').log("Pos: " + Pos)
 
     const First = {
@@ -261,17 +253,14 @@ async function getPath(Point, Radius) {
     Queue.push(First)
 
     for (let Item of Queue) {
-        logger.setLevel('debug')
         logger.color('yellow').bold().log("\nElements:\n  -Queue : " + Queue.length + "\n  -Explored : " + Explored.size + "\n")
         if (Item.Position.equals(Point)) {
-            logger.setLevel('success')
             logger.color('green').bold().log("Path found succesfully!")
             const Coords = []
 
             let Current = Item
             while (Current != undefined) {
                 Coords.push(Current.Position)
-                logger.setLevel('debug')
                 logger.color('cyan').log("-Coords: " + Coords)
                 Current = Current.Parent
             }
@@ -281,8 +270,7 @@ async function getPath(Point, Radius) {
         for (const Position of Positions) {
             let nearBlockPos = Item.Position.clone().add(Position).round()
 
-            if (!Explored.has(nearBlockPos.toString()) && isValidPos(nearBlockPos) && isInRange(nearBlockPos, Radius)) {
-                logger.setLevel("debug")
+            if (isInRange(nearBlockPos, Radius) && !Explored.has(nearBlockPos.toString()) && isValidPos(nearBlockPos)) {
                 logger.color('magenta').log(nearBlockPos + " Is valid Block!")
                 Explored.add(nearBlockPos.toString())
                 Queue.push({
@@ -294,13 +282,7 @@ async function getPath(Point, Radius) {
         }
         await waitForTicks(Delay)
     }
-
-    if (Queue.length == 0) {
-        logger.setLevel("error")
-        logger.color('red').log("Path not found!")
-        return []
-    }
-
+    return []
 }
 
 
@@ -329,11 +311,9 @@ async function elytraTo(Point) {
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
     if (airBlocksIDs.includes(Block.type)) {
-        logger.setLevel("debug")
         logger.color('green').log(Point + ", Is AIR!")
         return true
     }
-    logger.setLevel("debug")
     logger.color('green').log(Point + ", Is not AIR!")
     return false
 }
@@ -346,11 +326,9 @@ function isInRange(Point, Range) {
     let rangeY = Point.y >= minusPos.y && Point.y <= plusPos.y
     let rangeZ = Point.z >= minusPos.z && Point.z <= plusPos.z
     if (rangeX && rangeY && rangeZ) {
-        logger.setLevel('debug')
         logger.color('green').log(Point + " It's in range")
         return true
     }
-    logger.setLevel("debug")
     logger.color('red').log(Point + " It isn't in range")
     return false
 }
