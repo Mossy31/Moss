@@ -8,11 +8,10 @@ const Bot = Mineflayer.createBot({
     version: '26.1'
 })
 
-Bot.on('chat', Search)
 Bot.on('chat', Fly)
 
 Bot.on('kicked', (Res) => {
-    logger.log(Res)
+    // logger.log(Res)
 })
 
 //--------------------//
@@ -20,7 +19,7 @@ Bot.on('kicked', (Res) => {
 //Creates the logger to set specific colors
 const logger = require('node-color-log');
 const Delay = 0
-const flyDelay = 0.8
+const flyDelay = 1.6
 //Area that the bot Scans
 const Range = 16
 const fillPercent = 75 / 100
@@ -127,15 +126,13 @@ function getItem(Name) {
 }
 
 //TODO: Refactor
-async function Search(User, Msg) {
-    if (User != 'elonMuschio' || Msg != 'Search') return
+async function Search() {
     await Bot.waitForChunksToLoad()
 
     const Location = Bot.entity.position.floored()
-    logger.bold().color("cyan").log("-Location :" + Location)
+    // logger.bold().color("cyan").log("-Location :" + Location)
 
-    let toConvert = 0
-    const toBonemeal = []
+    let toBonemeal = []
 
     for (let X = Location.x - Range; X <= Location.x + Range; X++) {
         for (let Y = Location.y - Range; Y <= Location.y + Range; Y++) {
@@ -143,10 +140,11 @@ async function Search(User, Msg) {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
                 if (Block.type == mossBlockID) {
                     const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
-                    //logger.bgColor('green').color('black').log("Moss")
+                    // logger.bgColor('green').color('black').log("Moss")
                     if (airBlocksIDs.includes(blockUp.type)) {
                         const Perimeter = getPerimeter(Block)
-                        //logger.bgColor('yellow').color('black').log("Air")
+                        // logger.bgColor('yellow').color('black').log("Air")
+                        let toConvert = 0
                         for (const perimeterBlock of Perimeter) {
                             if (mossyBlocksIDs.includes(perimeterBlock.type)) {
                                 const perimeterBlockUp = Bot.blockAt(perimeterBlock.position.offset(0, 1, 0))
@@ -162,10 +160,18 @@ async function Search(User, Msg) {
             }
         }
     }
-    for (const Moss of toBonemeal) {
-        //logger.color('black').bgColor('red').log("Moss:\n  -Times: " + Moss.Times + "\n  -Block: " + Moss.Block.position.toString())
-        await elytraTo(Moss.Block.position.offset(0, 1, 0))
+    // for (Moss of toBonemeal) {
+    //     logger.color('red').log(Moss.Times)
+    // }
+    toBonemeal.sort((A, B) => {
+        // Perche deve restituire un numero negativo se A < B e positivo se A > B
+        return A.Times - B.Times
+    })
+    toBonemeal.reverse()
+    for (Moss of toBonemeal) {
+        logger.color('yellow').log(Moss.Times)
     }
+    return toBonemeal[0]
 }
 
 // Mario vola nessuno sa come Lol :)
@@ -176,13 +182,23 @@ async function Fly(User, Msg) {
         if (elytra != null) {
             await Bot.equip(elytra, 'torso')
         } else {
-            logger.log("No Elytra in the Inventory")
+            // logger.log("No Elytra in the Inventory")
             return
         }
         await flyElytra()
-        // Random Tests
-        //await elytraTo(Bot.entity.position.offset(12, 4, 12).floor())
+        let Moss = await Search()
+        // logger.log("Moss: ", Moss.Block.position)
+        await elytraTo(Moss.Block.position.offset(0, 1, 0))
+        await Bonemeal(Moss.Block)
     }
+}
+
+function isFilled() {
+    return false
+}
+
+async function Bonemeal(Block) {
+    await Bot.activateBlock(Block)
 }
 
 // Jump and opens the Elytra
@@ -195,7 +211,7 @@ async function flyElytra() {
         })
         Bot.physicsEnabled = false
         Bot.entity.onGround = false
-        console.log(Bot.physicsEnabled)
+        // console.log(Bot.physicsEnabled)
     }
 }
 
@@ -226,7 +242,7 @@ async function Square() {
 // Elytra path Finding ¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸ //
 
 async function getPath(Point, Radius) {
-    logger.color('yellow').bold().log("getPath()...")
+    // logger.color('yellow').bold().log("getPath()...")
     const Positions = [
         new Vec3(1, 0, 0),
         new Vec3(-1, 0, 0),
@@ -237,7 +253,7 @@ async function getPath(Point, Radius) {
     ]
 
     let Pos = Bot.entity.position
-    logger.color('magenta').log("Pos: " + Pos)
+    // logger.color('magenta').log("Pos: " + Pos)
 
     const First = {
         // Floored and not clone() + round() perche round lo fa per eccesso
@@ -249,15 +265,15 @@ async function getPath(Point, Radius) {
     Queue.push(First)
 
     for (let Item of Queue) {
-        logger.color('yellow').bold().log("\nElements:\n  -Queue : " + Queue.length + "\n  -Explored : " + Explored.size + "\n")
+        // logger.color('yellow').bold().log("\nElements:\n  -Queue : " + Queue.length + "\n  -Explored : " + Explored.size + "\n")
         if (Item.Position.equals(Point)) {
-            logger.color('green').bold().log("Path found succesfully!")
+            // logger.color('green').bold().log("Path found succesfully!")
             const Coords = []
 
             let Current = Item
             while (Current != undefined) {
                 Coords.push(Current.Position)
-                logger.color('cyan').log("-Coords: " + Coords)
+                // logger.color('cyan').log("-Coords: " + Coords)
                 Current = Current.Parent
             }
             return Coords
@@ -267,7 +283,7 @@ async function getPath(Point, Radius) {
             let nearBlockPos = Item.Position.clone().add(Position).round()
 
             if (isInRange(nearBlockPos, Radius) && !Explored.has(nearBlockPos.toString()) && isValidPos(nearBlockPos)) {
-                logger.color('magenta').log(nearBlockPos + " Is valid Block!")
+                // logger.color('magenta').log(nearBlockPos + " Is valid Block!")
                 Explored.add(nearBlockPos.toString())
                 Queue.push({
                     "Position": nearBlockPos,
@@ -279,8 +295,8 @@ async function getPath(Point, Radius) {
         await waitForTicks(Delay)
     }
 
-    logger.color('magenta').bold().log("\n -Nessun percorso Trovato")
-    logger.color('blue').bold().log("\n -Point: " + Point)
+    // logger.color('magenta').bold().log("\n -Nessun percorso Trovato")
+    // logger.color('blue').bold().log("\n -Point: " + Point)
     return []
 }
 
@@ -310,10 +326,10 @@ async function elytraTo(Point) {
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
     if (airBlocksIDs.includes(Block.type)) {
-        logger.color('green').log(Point + ", Is AIR!")
+        // logger.color('green').log(Point + ", Is AIR!")
         return true
     }
-    logger.color('green').log(Point + ", Is not AIR!")
+    // logger.color('green').log(Point + ", Is not AIR!")
     return false
 }
 
@@ -325,10 +341,10 @@ function isInRange(Point, Range) {
     let rangeY = Point.y >= minusPos.y && Point.y <= plusPos.y
     let rangeZ = Point.z >= minusPos.z && Point.z <= plusPos.z
     if (rangeX && rangeY && rangeZ) {
-        logger.color('green').log(Point + " It's in range")
+        // logger.color('green').log(Point + " It's in range")
         return true
     }
-    logger.color('red').log(Point + " It isn't in range")
+    // logger.color('red').log(Point + " It isn't in range")
     return false
 }
 
