@@ -1,9 +1,5 @@
 const Mineflayer = require('mineflayer')
 const Vec3 = require('vec3').Vec3
-const { createPlugin, goals, NoPathError } = require('./Pathfinder')
-const { JumpCalculator } = require('./Pathfinder/dist/mineflayer-specific/movements/movementUtils')
-const { validateLocaleAndSetLanguage, isConstructorDeclaration, OuterExpressionKinds } = require('typescript')
-const { completePath } = require('@miner-org/mineflayer-baritone/src/utils')
 
 const Bot = Mineflayer.createBot({
     host: 'localhost',
@@ -24,7 +20,7 @@ Bot.on('kicked', (Res) => {
 //Creates the logger to set specific colors
 const logger = require('node-color-log');
 const Delay = 0
-const flyDelay = 4
+const flyDelay = 0.8
 //Area that the bot Scans
 const Range = 16
 const fillPercent = 75 / 100
@@ -122,8 +118,7 @@ function getItem(Name) {
     if (Inv != null)
         for (Slot of Inv) {
             if (Slot != null) {
-                if (Slot.type == getID(Name)) {
-                    logger.log(getItemID(Name))
+                if (Slot.type == getItemID(Name)) {
                     return Slot
                 }
             }
@@ -139,8 +134,8 @@ async function Search(User, Msg) {
     const Location = Bot.entity.position.floored()
     logger.bold().color("cyan").log("-Location :" + Location)
 
-    const toBonemeal = []
     let toConvert = 0
+    const toBonemeal = []
 
     for (let X = Location.x - Range; X <= Location.x + Range; X++) {
         for (let Y = Location.y - Range; Y <= Location.y + Range; Y++) {
@@ -169,6 +164,7 @@ async function Search(User, Msg) {
     }
     for (const Moss of toBonemeal) {
         //logger.color('black').bgColor('red').log("Moss:\n  -Times: " + Moss.Times + "\n  -Block: " + Moss.Block.position.toString())
+        await elytraTo(Moss.Block.position.offset(0, 1, 0))
     }
 }
 
@@ -185,13 +181,12 @@ async function Fly(User, Msg) {
         }
         await flyElytra()
         // Random Tests
-        await elytraTo(Bot.entity.position.offset(16, 4, 16).floor())
+        //await elytraTo(Bot.entity.position.offset(12, 4, 12).floor())
     }
 }
 
 // Jump and opens the Elytra
 async function flyElytra() {
-    // TODO: More accurate method to get the State
     if (!Bot.entity.elytraFlying) {
         await Jump()
         Bot._client.write('entity_action', {
@@ -200,13 +195,14 @@ async function flyElytra() {
         })
         Bot.physicsEnabled = false
         Bot.entity.onGround = false
+        console.log(Bot.physicsEnabled)
     }
 }
 
 async function Jump() {
     await waitForTicks(1)
     Bot.setControlState('jump', true)
-    await waitForTicks(1.5)
+    await waitForTicks(1)
     Bot.setControlState('jump', false)
 }
 
@@ -282,6 +278,9 @@ async function getPath(Point, Radius) {
         }
         await waitForTicks(Delay)
     }
+
+    logger.color('magenta').bold().log("\n -Nessun percorso Trovato")
+    logger.color('blue').bold().log("\n -Point: " + Point)
     return []
 }
 
