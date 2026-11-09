@@ -9,9 +9,9 @@ const Bot = Mineflayer.createBot({
 })
 
 Bot.on('chat', Fly)
+Bot.on('chat', Test)
 
 Bot.on('kicked', (Res) => {
-    // logger.log(Res)
 })
 
 //--------------------//
@@ -19,9 +19,17 @@ Bot.on('kicked', (Res) => {
 //Creates the logger to set specific colors
 const logger = require('node-color-log');
 const Delay = 0
-const flyDelay = 1.6
+const flyDelay = 3
+
+//State for the flyElytra
+let flyState = false
+
+// Valori per la media ponderata fra la distanza dal blocco di Muschio e il Numero di blocchi che Converte
+const distanceImp = 0.65
+const rangeImp = 0.35
+
 //Area that the bot Scans
-const Range = 16
+const Range = 8
 const fillPercent = 75 / 100
 
 const airBlocksNames = ['air', 'void_air', 'cave_air']
@@ -50,7 +58,7 @@ const mossyBlocksNames = [
     'cobblestone' // Temporaneo
 ]
 
-// List of Blocks IDs that can be transformed in Moss / And other ranodm Blocks IDs for Testing
+// List of Blocks IDs that can be transformed in Moss / And other Blocks IDs
 const mossyBlocksIDs = getIDs(mossyBlocksNames)
 const airBlocksIDs = getIDs(airBlocksNames)
 const mossBlockID = getBlockID('moss_block')
@@ -79,7 +87,7 @@ function getBlockID(Name) {
     return undefined
 }
 
-//TODO: Refactor (The moss block should do it not every Block)
+//TODO: Change the Actual range of Moss with the real sprading table from the Wiki with a ponderate media of the value
 function getPerimeter(Block) {
     const Position = Block.position
     const Numbers = [0, 1, -1, 2, -2]
@@ -125,12 +133,12 @@ function getItem(Name) {
     return null
 }
 
-//TODO: Refactor
+
+// Reafctor the Times count with the real Moss spread Mecanic
 async function Search() {
     await Bot.waitForChunksToLoad()
 
     const Location = Bot.entity.position.floored()
-    // logger.bold().color("cyan").log("-Location :" + Location)
 
     let toBonemeal = []
 
@@ -140,10 +148,8 @@ async function Search() {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
                 if (Block.type == mossBlockID) {
                     const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
-                    // logger.bgColor('green').color('black').log("Moss")
                     if (airBlocksIDs.includes(blockUp.type)) {
                         const Perimeter = getPerimeter(Block)
-                        // logger.bgColor('yellow').color('black').log("Air")
                         let toConvert = 0
                         for (const perimeterBlock of Perimeter) {
                             if (mossyBlocksIDs.includes(perimeterBlock.type)) {
@@ -160,18 +166,15 @@ async function Search() {
             }
         }
     }
-    // for (Moss of toBonemeal) {
-    //     logger.color('red').log(Moss.Times)
-    // }
-    toBonemeal.sort((A, B) => {
-        // Perche deve restituire un numero negativo se A < B e positivo se A > B
-        return A.Times - B.Times
-    })
-    toBonemeal.reverse()
-    for (Moss of toBonemeal) {
-        logger.color('yellow').log(Moss.Times)
+    if (toBonemeal.length > 0) {
+        toBonemeal.sort((A, B) => {
+            // Perche deve restituire un numero negativo se A < B e positivo se A > B
+            return A.Times - B.Times
+        })
+        toBonemeal.reverse()
+        return toBonemeal[0].Block
     }
-    return toBonemeal[0]
+    return undefined
 }
 
 // Mario vola nessuno sa come Lol :)
@@ -182,14 +185,21 @@ async function Fly(User, Msg) {
         if (elytra != null) {
             await Bot.equip(elytra, 'torso')
         } else {
-            // logger.log("No Elytra in the Inventory")
+            logger.color('red').bold().log('No elytra in the Inv')
             return
         }
-        await flyElytra()
+        await flyElytra(true)
         let Moss = await Search()
-        // logger.log("Moss: ", Moss.Block.position)
-        await elytraTo(Moss.Block.position.offset(0, 1, 0))
-        await Bonemeal(Moss.Block)
+        if (Moss != undefined) {
+            await elytraTo(Moss.position.offset(0, 1, 0))
+            //await Bonemeal(Moss)
+        }
+    }
+}
+
+async function Test(User, Msg) {
+    if (User == 'elonMuschio' && (Msg == 'Test' || Msg == 'T')) {
+        await flyElytra()
     }
 }
 
@@ -198,25 +208,43 @@ function isFilled() {
 }
 
 async function Bonemeal(Block) {
-    await Bot.activateBlock(Block)
+    Bot.activateItem()
 }
 
 // Jump and opens the Elytra
 async function flyElytra() {
     if (!Bot.entity.elytraFlying) {
+        await equipElytra()
         await Jump()
-        Bot._client.write('entity_action', {
-            entityId: Bot.entity.id,
-            actionId: Bot.supportFeature('entityActionUsesStringMapper') ? 'start_elytra_flying' : 6
-        })
+        fallFlying()
         Bot.physicsEnabled = false
-        Bot.entity.onGround = false
-        // console.log(Bot.physicsEnabled)
     }
 }
 
+//TODO: Check the elytra Durability
+async function equipElytra() {
+    const elytra = getItem('elytra')
+    if (elytra != null) {
+        await Bot.equip(elytra, 'torso')
+    } else {
+        logger.color('red').bold().log('No elytra in the Inv')
+        return
+    }
+}
+
+function fallFlying() {
+    //Pachetti devono essere completi vedere mappings nel file protocol.json tutti i campi!
+    //node_modules/minecraft-data/minecraft-data/data/pc/26.1/protocol.json:10479
+    Bot._client.write('entity_action', {
+        entityId: Bot.entity.id,
+        actionId: 'start_fall_flying',
+        jumpBoost: 0
+    })
+}
+
 async function Jump() {
-    await waitForTicks(1)
+    Bot.physicsEnabled = true
+    Bot.entity.onGround = true
     Bot.setControlState('jump', true)
     await waitForTicks(1)
     Bot.setControlState('jump', false)
@@ -242,7 +270,6 @@ async function Square() {
 // Elytra path Finding ¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸.·´¯`·.¸ //
 
 async function getPath(Point, Radius) {
-    // logger.color('yellow').bold().log("getPath()...")
     const Positions = [
         new Vec3(1, 0, 0),
         new Vec3(-1, 0, 0),
@@ -253,7 +280,6 @@ async function getPath(Point, Radius) {
     ]
 
     let Pos = Bot.entity.position
-    // logger.color('magenta').log("Pos: " + Pos)
 
     const First = {
         // Floored and not clone() + round() perche round lo fa per eccesso
@@ -265,15 +291,12 @@ async function getPath(Point, Radius) {
     Queue.push(First)
 
     for (let Item of Queue) {
-        // logger.color('yellow').bold().log("\nElements:\n  -Queue : " + Queue.length + "\n  -Explored : " + Explored.size + "\n")
         if (Item.Position.equals(Point)) {
-            // logger.color('green').bold().log("Path found succesfully!")
             const Coords = []
 
             let Current = Item
             while (Current != undefined) {
                 Coords.push(Current.Position)
-                // logger.color('cyan').log("-Coords: " + Coords)
                 Current = Current.Parent
             }
             return Coords
@@ -283,7 +306,6 @@ async function getPath(Point, Radius) {
             let nearBlockPos = Item.Position.clone().add(Position).round()
 
             if (isInRange(nearBlockPos, Radius) && !Explored.has(nearBlockPos.toString()) && isValidPos(nearBlockPos)) {
-                // logger.color('magenta').log(nearBlockPos + " Is valid Block!")
                 Explored.add(nearBlockPos.toString())
                 Queue.push({
                     "Position": nearBlockPos,
@@ -295,8 +317,6 @@ async function getPath(Point, Radius) {
         await waitForTicks(Delay)
     }
 
-    // logger.color('magenta').bold().log("\n -Nessun percorso Trovato")
-    // logger.color('blue').bold().log("\n -Point: " + Point)
     return []
 }
 
@@ -309,9 +329,9 @@ async function executePath(Path) {
 
 // Temporany
 async function botMove(Pos) {
-    // Asse Y messo 0.15 perche la hitbox è alta 0.6
+    // Asse Y messo 0.25 perche la hitbox è alta 0.6
     // 0.1 tocca per terra per qualche Motivo
-    Bot.entity.position = Pos.offset(0.5, 0.15, 0.5)
+    Bot.entity.position = Pos.offset(0.5, 0.25, 0.5)
     await waitForTicks(flyDelay)
 }
 
@@ -326,10 +346,8 @@ async function elytraTo(Point) {
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
     if (airBlocksIDs.includes(Block.type)) {
-        // logger.color('green').log(Point + ", Is AIR!")
         return true
     }
-    // logger.color('green').log(Point + ", Is not AIR!")
     return false
 }
 
@@ -341,10 +359,8 @@ function isInRange(Point, Range) {
     let rangeY = Point.y >= minusPos.y && Point.y <= plusPos.y
     let rangeZ = Point.z >= minusPos.z && Point.z <= plusPos.z
     if (rangeX && rangeY && rangeZ) {
-        // logger.color('green').log(Point + " It's in range")
         return true
     }
-    // logger.color('red').log(Point + " It isn't in range")
     return false
 }
 
