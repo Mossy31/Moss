@@ -52,9 +52,6 @@ const mossyBlocksNames = [
     'muddy_mangrove_roots',
     'pale_moss_block',
 
-    'cave_vines',
-    'cave_vines_plant',
-
     'cobblestone' // Temporaneo
 ]
 
@@ -87,21 +84,98 @@ function getBlockID(Name) {
     return undefined
 }
 
-//TODO: Change the Actual range of Moss with the real sprading table from the Wiki with a ponderate media of the value
 function getPerimeter(Block) {
     const Position = Block.position
-    const Numbers = [0, 1, -1, 2, -2]
-    const Blocks = []
+    let Blocks = 0
+    //Ogni blocco che lo circonda e che probabilita a di diventare a sua volta un blocco di Muschio
+    const Positions = [
+        { Number: 0, Coords: new Vec3(3, 0, 3) },
+        { Number: 0.1875, Coords: new Vec3(2, 0, 3) },
+        { Number: 0.375, Coords: new Vec3(1, 0, 3) },
+        { Number: 0.375, Coords: new Vec3(0, 0, 3) },
+        { Number: 0.375, Coords: new Vec3(-1, 0, 3) },
+        { Number: 0.1875, Coords: new Vec3(-2, 0, 3) },
+        { Number: 0, Coords: new Vec3(-3, 0, 3) },
 
-    for (const Num1 of Numbers) {
-        for (const Num2 of Numbers) {
-            if (Num1 == Num2 && Num1 == 0) continue
-            Blocks.push(
-                Bot.blockAt(Position.plus(new Vec3(Num1, 0, Num2)))
-            )
-            Blocks.push(
-                Bot.blockAt(Position.plus(new Vec3(Num1, 1, Num2)))
-            )
+        { Number: 0.1875, Coords: new Vec3(3, 0, 2) },
+        { Number: 0.625, Coords: new Vec3(2, 0, 2) },
+        { Number: 0.875, Coords: new Vec3(1, 0, 2) },
+        { Number: 0.875, Coords: new Vec3(0, 0, 2) },
+        { Number: 0.875, Coords: new Vec3(-1, 0, 2) },
+        { Number: 0.625, Coords: new Vec3(-2, 0, 2) },
+        { Number: 0.1875, Coords: new Vec3(-3, 0, 2) },
+
+        { Number: 0.375, Coords: new Vec3(3, 0, 1) },
+        { Number: 0.875, Coords: new Vec3(2, 0, 1) },
+        { Number: 1, Coords: new Vec3(1, 0, 1) },
+        { Number: 1, Coords: new Vec3(0, 0, 1) },
+        { Number: 1, Coords: new Vec3(-1, 0, 1) },
+        { Number: 0.875, Coords: new Vec3(-2, 0, 1) },
+        { Number: 0.375, Coords: new Vec3(-3, 0, 1) },
+
+        { Number: 0.375, Coords: new Vec3(3, 0, 0) },
+        { Number: 0.875, Coords: new Vec3(2, 0, 0) },
+        { Number: 1, Coords: new Vec3(1, 0, 0) },
+        // Ignore Center { Number: 1, Coords: new Vec3(0, 0, 0) },
+        { Number: 1, Coords: new Vec3(-1, 0, 0) },
+        { Number: 0.875, Coords: new Vec3(-2, 0, 0) },
+        { Number: 0.375, Coords: new Vec3(-3, 0, 0) },
+
+        { Number: 0.375, Coords: new Vec3(3, 0, -1) },
+        { Number: 0.875, Coords: new Vec3(2, 0, -1) },
+        { Number: 1, Coords: new Vec3(1, 0, -1) },
+        { Number: 1, Coords: new Vec3(0, 0, -1) },
+        { Number: 1, Coords: new Vec3(-1, 0, -1) },
+        { Number: 0.875, Coords: new Vec3(-2, 0, -1) },
+        { Number: 0.375, Coords: new Vec3(-3, 0, -1) },
+
+        { Number: 0.1875, Coords: new Vec3(3, 0, -2) },
+        { Number: 0.625, Coords: new Vec3(2, 0, -2) },
+        { Number: 0.875, Coords: new Vec3(1, 0, -2) },
+        { Number: 0.875, Coords: new Vec3(0, 0, -2) },
+        { Number: 0.875, Coords: new Vec3(-1, 0, -2) },
+        { Number: 0.625, Coords: new Vec3(-2, 0, -2) },
+        { Number: 0.1875, Coords: new Vec3(-3, 0, -2) },
+
+        { Number: 0, Coords: new Vec3(3, 0, -3) },
+        { Number: 0.1875, Coords: new Vec3(2, 0, -3) },
+        { Number: 0.375, Coords: new Vec3(1, 0, -3) },
+        { Number: 0.375, Coords: new Vec3(0, 0, -3) },
+        { Number: 0.375, Coords: new Vec3(-1, 0, -3) },
+        { Number: 0.1875, Coords: new Vec3(-2, 0, -3) },
+        { Number: 0, Coords: new Vec3(-3, 0, -3) }
+    ]
+    for (let Pos of Positions) {
+        // Some test i made for the positions to get how down and how up can the moss expand :P
+        let Yep = false
+        let Det = Block.position.plus(Pos.Coords.offset(0, 1, 0))
+        if (airBlocksIDs.includes(Bot.blockAt(Det).type)) {
+            // θ is the variable for no reason!
+            for (let θ = 1; θ <= 6; θ++) {
+                let Current = Det.plus(new Vec3(0, -θ, 0))
+                let B = Bot.blockAt(Current).type
+                if (!airBlocksIDs.includes(B)) {
+                    if (mossyBlocksIDs.includes(B)) {
+                        Yep = true
+                    }
+                    break
+                }
+            }
+        } else {
+            for (let θ = 1; θ <= 5; θ++) {
+                //Can't reassin
+                let Current = Det.plus(new Vec3(0, θ, 0))
+                let B = Bot.blockAt(Current).type
+                if (airBlocksIDs.includes(B)) {
+                    if (mossyBlocksIDs.includes(Bot.blockAt(Current.offset(0, -1, 0)).type)) {
+                        Yep = true
+                    }
+                    break
+                }
+            }
+        }
+        if (Yep) {
+            Blocks += Pos.Number
         }
     }
     return Blocks
@@ -121,9 +195,9 @@ async function waitForTicks(Ticks) {
 
 
 function getItem(Name) {
-    Inv = Bot.inventory.slots
+    const Inv = Bot.inventory.slots
     if (Inv != null)
-        for (Slot of Inv) {
+        for (let Slot of Inv) {
             if (Slot != null) {
                 if (Slot.type == getItemID(Name)) {
                     return Slot
@@ -131,6 +205,10 @@ function getItem(Name) {
             }
         }
     return null
+}
+
+function distanceTo(Point) {
+
 }
 
 
@@ -141,35 +219,28 @@ async function Search() {
     const Location = Bot.entity.position.floored()
 
     let toBonemeal = []
-
-    for (let X = Location.x - Range; X <= Location.x + Range; X++) {
-        for (let Y = Location.y - Range; Y <= Location.y + Range; Y++) {
-            for (let Z = Location.z - Range; Z <= Location.z + Range; Z++) {
+    for (let X = Location.x; X < Location.x + Range; X++) {
+        for (let Y = Location.y; Y < Location.y + Range; Y++) {
+            for (let Z = Location.z; Z < Location.z + Range; Z++) {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
                 if (Block.type == mossBlockID) {
                     const blockUp = Bot.blockAt(new Vec3(X, Y + 1, Z))
                     if (airBlocksIDs.includes(blockUp.type)) {
-                        const Perimeter = getPerimeter(Block)
-                        let toConvert = 0
-                        for (const perimeterBlock of Perimeter) {
-                            if (mossyBlocksIDs.includes(perimeterBlock.type)) {
-                                const perimeterBlockUp = Bot.blockAt(perimeterBlock.position.offset(0, 1, 0))
-                                if (airBlocksIDs.includes(perimeterBlockUp.type)) {
-                                    toConvert++
-                                }
-                            }
-                        }
-                        toBonemeal.push({ "Block": Block, "Times": toConvert })
-                        toConvert = 0
+                        toBonemeal.push({ "Block": Block, "Times": getPerimeter(Block) })
                     }
                 }
             }
         }
     }
+    //TODO: Rapporto distanza, Blocchi possibilmente convertibili
     if (toBonemeal.length > 0) {
         toBonemeal.sort((A, B) => {
+            const PosA = A.Block.position
+            const PosB = B.Block.position
+            distA = distanceTo(PosA)
+            distB = distanceTo(PosB)
             // Perche deve restituire un numero negativo se A < B e positivo se A > B
-            return A.Times - B.Times
+            return A.Times / DistA - B.Times / DistB
         })
         toBonemeal.reverse()
         return toBonemeal[0].Block
@@ -221,11 +292,27 @@ async function flyElytra() {
     }
 }
 
-//TODO: Check the elytra Durability
+async function Exp() {
+
+}
+
+//TODO: Elytra EXP
 async function equipElytra() {
     const elytra = getItem('elytra')
     if (elytra != null) {
-        await Bot.equip(elytra, 'torso')
+        if (elytra.durabilityUsed <= 1) {
+            if (elytra.enchants.includes({ "name": "mending", "lvl": 1 })) {
+                while (elytra.durabilityUsed != elytra.maxDurability) {
+                    await Exp()
+                }
+                await Bot.equip(elytra, 'torso')
+            } else {
+                logger.color('red').bold().log('No elytra in the Inv')
+                return
+            }
+        } else {
+            await Bot.equip(elytra, 'torso')
+        }
     } else {
         logger.color('red').bold().log('No elytra in the Inv')
         return
@@ -345,10 +432,8 @@ async function elytraTo(Point) {
 
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
-    if (airBlocksIDs.includes(Block.type)) {
-        return true
-    }
-    return false
+    return airBlocksIDs.includes(Block.type)
+
 }
 
 function isInRange(Point, Range) {
