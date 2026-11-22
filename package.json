@@ -3,6 +3,7 @@
     "lru-cache": "^10.4.3",
     "mineflayer": "^4.39.0",
     "node-color-log": "^14.0.0",
+    "prismarine-viewer": "^1.33.0",
     "vec3": "^0.1.10"
   },
   "devDependencies": {

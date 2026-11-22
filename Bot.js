@@ -1,7 +1,8 @@
-const Mineflayer = require('mineflayer')
-const Vec3 = require('vec3').Vec3
+const mineflayer = require('mineflayer')
+const Vec3 = require('vec3')
 
-const Bot = Mineflayer.createBot({
+
+const Bot = mineflayer.createBot({
     host: 'localhost',
     port: 25565,
     username: 'Mario',
@@ -12,25 +13,29 @@ Bot.on('chat', Fly)
 Bot.on('chat', Test)
 
 Bot.on('kicked', (Res) => {
+    color('red').bold().log(Res)
+})
+
+Bot.on('spawn', () => {
+    mineflayerViewer(Bot, port=3000, firstPerson = false, viewDistance = 4)
 })
 
 //--------------------//
 
 //Creates the logger to set specific colors
-const logger = require('node-color-log');
+const logger = require('node-color-log')
 const Delay = 0
 const flyDelay = 3
 
 //State for the flyElytra
 let flyState = false
 
-// Valori per la media ponderata fra la distanza dal blocco di Muschio e il Numero di blocchi che Converte
-const distanceImp = 0.65
-const rangeImp = 0.35
-
 //Area that the bot Scans
 const Range = 8
 const fillPercent = 75 / 100
+const elytraMinDurabilityPercent = 87.5 / 100
+const expBatchSize = 8
+const expDelay = 4
 
 const airBlocksNames = ['air', 'void_air', 'cave_air']
 
@@ -194,21 +199,24 @@ async function waitForTicks(Ticks) {
 }
 
 
-function getItem(Name) {
+function getItems(Name) {
     const Inv = Bot.inventory.slots
-    if (Inv != null)
+    const Slots = []
+    if (Inv != null) {
         for (let Slot of Inv) {
             if (Slot != null) {
                 if (Slot.type == getItemID(Name)) {
-                    return Slot
+                    Slots.push(Slot)
                 }
             }
         }
+        return Slots
+    }
     return null
 }
 
 function distanceTo(Point) {
-
+    return Bot.entity.position.distanceTo(Point)
 }
 
 
@@ -232,15 +240,18 @@ async function Search() {
             }
         }
     }
-    //TODO: Rapporto distanza, Blocchi possibilmente convertibili
     if (toBonemeal.length > 0) {
         toBonemeal.sort((A, B) => {
-            const PosA = A.Block.position
-            const PosB = B.Block.position
-            distA = distanceTo(PosA)
-            distB = distanceTo(PosB)
+            let PosA = A.Block.position
+            let PosB = B.Block.position
+            let distA = distanceTo(PosA)
+            let distB = distanceTo(PosB)
+            if (distA == 0 && distB == 0) {
+                return 0
+            }
             // Perche deve restituire un numero negativo se A < B e positivo se A > B
-            return A.Times / DistA - B.Times / DistB
+            return A.Times / distA - B.Times / distB
+
         })
         toBonemeal.reverse()
         return toBonemeal[0].Block
@@ -252,13 +263,6 @@ async function Search() {
 
 async function Fly(User, Msg) {
     if (User == 'elonMuschio' && Msg == 'Fly') {
-        const elytra = getItem('elytra')
-        if (elytra != null) {
-            await Bot.equip(elytra, 'torso')
-        } else {
-            logger.color('red').bold().log('No elytra in the Inv')
-            return
-        }
         await flyElytra(true)
         let Moss = await Search()
         if (Moss != undefined) {
@@ -270,7 +274,7 @@ async function Fly(User, Msg) {
 
 async function Test(User, Msg) {
     if (User == 'elonMuschio' && (Msg == 'Test' || Msg == 'T')) {
-        await flyElytra()
+        await equipElytra()
     }
 }
 
@@ -292,31 +296,59 @@ async function flyElytra() {
     }
 }
 
-async function Exp() {
-
-}
-
-//TODO: Elytra EXP
 async function equipElytra() {
-    const elytra = getItem('elytra')
-    if (elytra != null) {
-        if (elytra.durabilityUsed <= 1) {
-            if (elytra.enchants.includes({ "name": "mending", "lvl": 1 })) {
-                while (elytra.durabilityUsed != elytra.maxDurability) {
+    const elytras = getItems('elytra')
+    if (elytras.length > 0) {
+        elytras.sort((A, B) => {
+            return A.durabilityUsed - B.durabilityUsed
+        })
+        for (let elytra of elytras) {
+            if (elytra.maxDurability - elytra.durabilityUsed <= elytra.maxDurability * elytraMinDurabilityPercent) {
+                let Enchants = elytra.enchants.enchantments
+                logger.log(Enchants)
+                //23 Mendign ID
+                //Some controlla se c'è almeno un elemento che rispetta la condizione
+                if (Enchants !== undefined && Enchants.some((Value) => { return Value.id == 23 && Value.level == 1 })) {
+                    logger.color('yellow').bold().log('Elytra has Mending')
+                    //while (elytra.maxDurability - elytra.durabilityUsed <= elytra.maxDurability * elytraMinDurabilityPercent) {
+                    logger.color('green').bold().log('Using Exp')
                     await Exp()
+                    //}
+                    await Bot.equip(elytra, 'torso')
+                    break
+                } else {
+                    logger.color('red').bold().log('Broken elytra does not have Mending')
                 }
-                await Bot.equip(elytra, 'torso')
             } else {
-                logger.color('red').bold().log('No elytra in the Inv')
-                return
+                logger.color('green').bold().log('Elytra is Fine')
+                await Bot.equip(elytra, 'torso')
+                break
             }
-        } else {
-            await Bot.equip(elytra, 'torso')
         }
     } else {
         logger.color('red').bold().log('No elytra in the Inv')
         return
     }
+}
+
+async function Exp() {
+    const Bottles = getItems('experience_bottle')
+    if (Bottles.length > 0) {
+        logger.color('green').log('Exp found!')
+        Bottles.sort((A, B) => {
+            logger.log(A.count, B.count)
+            return B.count - A.count
+        })
+        await Bot.look(0, Math.PI / 2)
+        logger.color('green').bold().append('List of items: ').reset().color('green').append(Bottles).log()
+    }
+}
+async function Jump() {
+    Bot.physicsEnabled = true
+    Bot.entity.onGround = true
+    Bot.setControlState('jump', true)
+    await waitForTicks(1)
+    Bot.setControlState('jump', false)
 }
 
 function fallFlying() {
@@ -327,14 +359,6 @@ function fallFlying() {
         actionId: 'start_fall_flying',
         jumpBoost: 0
     })
-}
-
-async function Jump() {
-    Bot.physicsEnabled = true
-    Bot.entity.onGround = true
-    Bot.setControlState('jump', true)
-    await waitForTicks(1)
-    Bot.setControlState('jump', false)
 }
 
 // Mario vola in un quadrato perchè è SCHEMO :(
@@ -427,8 +451,6 @@ async function elytraTo(Point) {
     const Path = await getPath(Point, 16)
     await executePath(Path)
 }
-
-//TODO: Check/Refactor
 
 function isValidPos(Point) {
     const Block = Bot.blockAt(Point)
