@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "lru-cache": "^10.4.3",
     "mineflayer": "^4.39.0",

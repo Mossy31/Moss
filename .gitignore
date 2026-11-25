@@ -2,3 +2,4 @@ node_modules
 Pathfinder.tar.gz
 .directory
 .gitignore
+.vscode

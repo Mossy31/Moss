@@ -1,6 +1,8 @@
-const mineflayer = require('mineflayer')
-const Vec3 = require('vec3')
-
+// import { mineflayer as mineflayerViewer } from 'prismarine-viewer'
+import mineflayer from 'mineflayer'
+import { Vec3 } from 'vec3'
+//Creates the logger to set specific colors
+import logger from 'node-color-log'
 
 const Bot = mineflayer.createBot({
     host: 'localhost',
@@ -13,17 +15,26 @@ Bot.on('chat', Fly)
 Bot.on('chat', Test)
 
 Bot.on('kicked', (Res) => {
-    color('red').bold().log(Res)
+    logger.color('red').bold().log(Res)
 })
 
-Bot.on('spawn', () => {
-    mineflayerViewer(Bot, port=3000, firstPerson = false, viewDistance = 4)
+Bot._client.on('error', (Error) => {
+    logger.color('red').bold().italic().log(Error)
 })
+
+/*
+    Bot._client.on('packet', (Data, Meta, Buffer) => {
+        logger.color('red').bold().log("Data: " + Data)
+        logger.color('yellow').bold().log("Meta: " + Meta.name + " " + Meta.state)
+    })
+*/
+
+// Bot.on('spawn', () => {
+//     mineflayerViewer(Bot, port=3000, firstPerson = false, viewDistance = 4)
+// })
 
 //--------------------//
 
-//Creates the logger to set specific colors
-const logger = require('node-color-log')
 const Delay = 0
 const flyDelay = 3
 
@@ -31,11 +42,11 @@ const flyDelay = 3
 let flyState = false
 
 //Area that the bot Scans
-const Range = 8
-const fillPercent = 75 / 100
-const elytraMinDurabilityPercent = 87.5 / 100
+const Range = 16
+const fillPercent = 87.5 / 100
+const elytraMinDurabilityPercent = 12.5 / 100
 const expBatchSize = 8
-const expDelay = 4
+const expTrowSpeed = 4
 
 const airBlocksNames = ['air', 'void_air', 'cave_air']
 
@@ -159,11 +170,8 @@ function getPerimeter(Block) {
             for (let θ = 1; θ <= 6; θ++) {
                 let Current = Det.plus(new Vec3(0, -θ, 0))
                 let B = Bot.blockAt(Current).type
-                if (!airBlocksIDs.includes(B)) {
-                    if (mossyBlocksIDs.includes(B)) {
-                        Yep = true
-                    }
-                    break
+                if (mossyBlocksIDs.includes(B)) {
+                    Yep = true
                 }
             }
         } else {
@@ -219,6 +227,28 @@ function distanceTo(Point) {
     return Bot.entity.position.distanceTo(Point)
 }
 
+// Exp function!
+export async function Exp() {
+    const Bottles = getItems('experience_bottle')
+    if (Bottles.length > 0) {
+        logger.color('green').log('Exp found!')
+        Bottles.sort((A, B) => {
+            logger.log(A.count, B.count)
+            return B.count - A.count
+        })
+        await Bot.look(0, Math.PI / 2)
+        logger.color('green').bold().append('List of items: ').reset().color('green').append(Bottles).log()
+        await Bot.equip(Bottles[0], 'hand')
+        if(Bottles.count >= expBatchSize) {
+            for(let Index = 0; Index < expBatchSize; Index++) {
+                Bot.activateItem()
+                waitForTicks(expTrowSpeed)
+            }
+        }    
+    } else {
+        return false
+    }
+}
 
 // Reafctor the Times count with the real Moss spread Mecanic
 async function Search() {
@@ -228,7 +258,7 @@ async function Search() {
 
     let toBonemeal = []
     for (let X = Location.x; X < Location.x + Range; X++) {
-        for (let Y = Location.y; Y < Location.y + Range; Y++) {
+        for (let Y = Location.y -1; Y < Location.y + Range - 1; Y++) {
             for (let Z = Location.z; Z < Location.z + Range; Z++) {
                 const Block = Bot.blockAt(new Vec3(X, Y, Z))
                 if (Block.type == mossBlockID) {
@@ -254,7 +284,7 @@ async function Search() {
 
         })
         toBonemeal.reverse()
-        return toBonemeal[0].Block
+        return toBonemeal[0]
     }
     return undefined
 }
@@ -263,18 +293,23 @@ async function Search() {
 
 async function Fly(User, Msg) {
     if (User == 'elonMuschio' && Msg == 'Fly') {
-        await flyElytra(true)
-        let Moss = await Search()
-        if (Moss != undefined) {
-            await elytraTo(Moss.position.offset(0, 1, 0))
-            //await Bonemeal(Moss)
+        let Moss
+        for(let Index = 0; Index < 16; Index++) {
+            Moss = await Search()
+            if (Moss != undefined) {
+                await flyElytra()
+                await elytraTo(Moss.Block.position.offset(0, 1, 0))
+                Bot.physicsEnabled = true
+                await waitForTicks(2)
+                await Bonemeal(Moss.Block)
+            }
         }
     }
 }
 
 async function Test(User, Msg) {
     if (User == 'elonMuschio' && (Msg == 'Test' || Msg == 'T')) {
-        await equipElytra()
+        await flyElytra()
     }
 }
 
@@ -283,19 +318,25 @@ function isFilled() {
 }
 
 async function Bonemeal(Block) {
-    Bot.activateItem()
+    await Bot.lookAt(Block.position, true)
+    Bot.activateBlock(Block)
 }
 
 // Jump and opens the Elytra
 async function flyElytra() {
     if (!Bot.entity.elytraFlying) {
+        Bot.physicsEnabled = true
+        await Bot.look(0, 0, true)
         await equipElytra()
         await Jump()
         fallFlying()
+        await waitForTicks(1)
         Bot.physicsEnabled = false
     }
 }
 
+
+// Cerca una alyrta con durabilita accetabile ho rotta ma riparabile con mending prova a ripararla in caso non riesce passa avanti
 async function equipElytra() {
     const elytras = getItems('elytra')
     if (elytras.length > 0) {
@@ -309,13 +350,8 @@ async function equipElytra() {
                 //23 Mendign ID
                 //Some controlla se c'è almeno un elemento che rispetta la condizione
                 if (Enchants !== undefined && Enchants.some((Value) => { return Value.id == 23 && Value.level == 1 })) {
+                    let S = true
                     logger.color('yellow').bold().log('Elytra has Mending')
-                    //while (elytra.maxDurability - elytra.durabilityUsed <= elytra.maxDurability * elytraMinDurabilityPercent) {
-                    logger.color('green').bold().log('Using Exp')
-                    await Exp()
-                    //}
-                    await Bot.equip(elytra, 'torso')
-                    break
                 } else {
                     logger.color('red').bold().log('Broken elytra does not have Mending')
                 }
@@ -331,21 +367,7 @@ async function equipElytra() {
     }
 }
 
-async function Exp() {
-    const Bottles = getItems('experience_bottle')
-    if (Bottles.length > 0) {
-        logger.color('green').log('Exp found!')
-        Bottles.sort((A, B) => {
-            logger.log(A.count, B.count)
-            return B.count - A.count
-        })
-        await Bot.look(0, Math.PI / 2)
-        logger.color('green').bold().append('List of items: ').reset().color('green').append(Bottles).log()
-    }
-}
 async function Jump() {
-    Bot.physicsEnabled = true
-    Bot.entity.onGround = true
     Bot.setControlState('jump', true)
     await waitForTicks(1)
     Bot.setControlState('jump', false)
