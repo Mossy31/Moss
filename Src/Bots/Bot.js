@@ -1,52 +1,22 @@
 // import { mineflayer as mineflayerViewer } from 'prismarine-viewer'
 import mineflayer from 'mineflayer'
 import { Vec3 } from 'vec3'
+// usare sempre il './' senza cerchera un pachetto installato in 'node_modules'
+import  { Wait, getBlocksIDs, getItemsIDs, loadMossTable } from '../Functions/Utility.ts'
 //Creates the logger to set specific colors
 import logger from 'node-color-log'
 
-const Bot = mineflayer.createBot({
-    host: 'localhost',
-    port: 25565,
-    username: 'Mario',
-    version: '26.1'
-})
 
-Bot.on('chat', Fly)
-Bot.on('chat', Test)
 
-Bot.on('kicked', (Res) => {
-    logger.color('red').bold().log(Res)
-})
+// All delays are in milliseconds
 
-Bot._client.on('error', (Error) => {
-    logger.color('red').bold().italic().log(Error)
-})
+const Version = 26.1
 
-/*
-    Bot._client.on('packet', (Data, Meta, Buffer) => {
-        logger.color('red').bold().log("Data: " + Data)
-        logger.color('yellow').bold().log("Meta: " + Meta.name + " " + Meta.state)
-    })
-*/
+const flyDelay = 150
 
-// Bot.on('spawn', () => {
-//     mineflayerViewer(Bot, port=3000, firstPerson = false, viewDistance = 4)
-// })
-
-//--------------------//
-
-const Delay = 0
-const flyDelay = 3
-
-//State for the flyElytra
-let flyState = false
-
-//Area that the bot Scans
 const Range = 16
 const fillPercent = 87.5 / 100
 const elytraMinDurabilityPercent = 12.5 / 100
-const expBatchSize = 8
-const expTrowSpeed = 4
 
 const airBlocksNames = ['air', 'void_air', 'cave_air']
 
@@ -66,101 +36,55 @@ const mossyBlocksNames = [
     'rooted_dirt',
     'mud',
     'muddy_mangrove_roots',
-    'pale_moss_block',
-
-    'cobblestone' // Temporaneo
+    'pale_moss_block'
 ]
 
 // List of Blocks IDs that can be transformed in Moss / And other Blocks IDs
-const mossyBlocksIDs = getIDs(mossyBlocksNames)
-const airBlocksIDs = getIDs(airBlocksNames)
-const mossBlockID = getBlockID('moss_block')
+const mossyBlocksIDs = getBlocksIDs(mossyBlocksNames, Bot.version)
+const airBlocksIDs = getBlocksIDs(airBlocksNames, Bot.version)
+const mossBlockID = getBlocksIDs('moss_block', Bot.version)
 
-function getIDs(Names) {
-    let blocksIDs = []
-    for (const Name of Names) {
-        blocksIDs.push(Bot.registry.blocksByName[Name].id)
-    }
-    return blocksIDs
-}
+//--------------------//
 
-function getItemID(Name) {
-    const Item = Bot.registry.itemsByName[Name]
-    if (Item != undefined) {
-        return Item.id
-    }
-    return undefined
-}
+const Bot = mineflayer.createBot({
+    host: 'localhost',
+    port: 25565,
+    username: 'Mario',
+    version: Version
+})
 
-function getBlockID(Name) {
-    const Block = Bot.registry.blocksByName[Name]
-    if (Block != undefined) {
-        return Block.id
-    }
-    return undefined
-}
+Bot.on('chat', Fly)
+Bot.on('chat', Test)
+
+Bot.on('kicked', (Res) => {
+    logger.color('red').bold().italic().log("Bot kicked" + Res)
+})
+
+Bot.on('error', (Error) => {
+    logger.color('red').bold().italic().log("Bot error: " + Error)
+})
+
+Bot._client.on('error', (Error) => {
+    logger.color('red').bold().italic().log("Client error: " +Error)
+})
+
+/*
+    Bot._client.on('packet', (Data, Meta, Buffer) => {
+        logger.color('red').bold().log("Data: " + Data)
+        logger.color('yellow').bold().log("Meta: " + Meta.name + " " + Meta.state)
+    })
+*/
+
+//--------------------//
 
 function getPerimeter(Block) {
     const Position = Block.position
     let Blocks = 0
-    //Ogni blocco che lo circonda e che probabilita a di diventare a sua volta un blocco di Muschio
-    const Positions = [
-        { Number: 0, Coords: new Vec3(3, 0, 3) },
-        { Number: 0.1875, Coords: new Vec3(2, 0, 3) },
-        { Number: 0.375, Coords: new Vec3(1, 0, 3) },
-        { Number: 0.375, Coords: new Vec3(0, 0, 3) },
-        { Number: 0.375, Coords: new Vec3(-1, 0, 3) },
-        { Number: 0.1875, Coords: new Vec3(-2, 0, 3) },
-        { Number: 0, Coords: new Vec3(-3, 0, 3) },
+    // Ogni blocco che lo circonda e che probabilita a di diventare a sua volta un blocco di Muschio
+    // Tabella presa dalla Mc wiki
+    const Positions = loadMossTable()
 
-        { Number: 0.1875, Coords: new Vec3(3, 0, 2) },
-        { Number: 0.625, Coords: new Vec3(2, 0, 2) },
-        { Number: 0.875, Coords: new Vec3(1, 0, 2) },
-        { Number: 0.875, Coords: new Vec3(0, 0, 2) },
-        { Number: 0.875, Coords: new Vec3(-1, 0, 2) },
-        { Number: 0.625, Coords: new Vec3(-2, 0, 2) },
-        { Number: 0.1875, Coords: new Vec3(-3, 0, 2) },
-
-        { Number: 0.375, Coords: new Vec3(3, 0, 1) },
-        { Number: 0.875, Coords: new Vec3(2, 0, 1) },
-        { Number: 1, Coords: new Vec3(1, 0, 1) },
-        { Number: 1, Coords: new Vec3(0, 0, 1) },
-        { Number: 1, Coords: new Vec3(-1, 0, 1) },
-        { Number: 0.875, Coords: new Vec3(-2, 0, 1) },
-        { Number: 0.375, Coords: new Vec3(-3, 0, 1) },
-
-        { Number: 0.375, Coords: new Vec3(3, 0, 0) },
-        { Number: 0.875, Coords: new Vec3(2, 0, 0) },
-        { Number: 1, Coords: new Vec3(1, 0, 0) },
-        // Ignore Center { Number: 1, Coords: new Vec3(0, 0, 0) },
-        { Number: 1, Coords: new Vec3(-1, 0, 0) },
-        { Number: 0.875, Coords: new Vec3(-2, 0, 0) },
-        { Number: 0.375, Coords: new Vec3(-3, 0, 0) },
-
-        { Number: 0.375, Coords: new Vec3(3, 0, -1) },
-        { Number: 0.875, Coords: new Vec3(2, 0, -1) },
-        { Number: 1, Coords: new Vec3(1, 0, -1) },
-        { Number: 1, Coords: new Vec3(0, 0, -1) },
-        { Number: 1, Coords: new Vec3(-1, 0, -1) },
-        { Number: 0.875, Coords: new Vec3(-2, 0, -1) },
-        { Number: 0.375, Coords: new Vec3(-3, 0, -1) },
-
-        { Number: 0.1875, Coords: new Vec3(3, 0, -2) },
-        { Number: 0.625, Coords: new Vec3(2, 0, -2) },
-        { Number: 0.875, Coords: new Vec3(1, 0, -2) },
-        { Number: 0.875, Coords: new Vec3(0, 0, -2) },
-        { Number: 0.875, Coords: new Vec3(-1, 0, -2) },
-        { Number: 0.625, Coords: new Vec3(-2, 0, -2) },
-        { Number: 0.1875, Coords: new Vec3(-3, 0, -2) },
-
-        { Number: 0, Coords: new Vec3(3, 0, -3) },
-        { Number: 0.1875, Coords: new Vec3(2, 0, -3) },
-        { Number: 0.375, Coords: new Vec3(1, 0, -3) },
-        { Number: 0.375, Coords: new Vec3(0, 0, -3) },
-        { Number: 0.375, Coords: new Vec3(-1, 0, -3) },
-        { Number: 0.1875, Coords: new Vec3(-2, 0, -3) },
-        { Number: 0, Coords: new Vec3(-3, 0, -3) }
-    ]
+    // TODO: Optimize
     for (let Pos of Positions) {
         // Some test i made for the positions to get how down and how up can the moss expand :P
         let Yep = false
@@ -194,26 +118,13 @@ function getPerimeter(Block) {
     return Blocks
 }
 
-
-// Just a delay that works with no Physics (Palle)
-async function waitForTicks(Ticks) {
-    if (Ticks <= 0) return
-    await new Promise((resolve, reject) => {
-
-        setTimeout(() => {
-            resolve()
-        }, Ticks * 50)
-    })
-}
-
-
 function getItems(Name) {
     const Inv = Bot.inventory.slots
     const Slots = []
     if (Inv != null) {
         for (let Slot of Inv) {
             if (Slot != null) {
-                if (Slot.type == getItemID(Name)) {
+                if (Slot.type == getItemsIDs(Name, Bot.version)) {
                     Slots.push(Slot)
                 }
             }
@@ -228,27 +139,29 @@ function distanceTo(Point) {
 }
 
 // Exp function!
-export async function Exp() {
-    const Bottles = getItems('experience_bottle')
-    if (Bottles.length > 0) {
-        logger.color('green').log('Exp found!')
-        Bottles.sort((A, B) => {
-            logger.log(A.count, B.count)
-            return B.count - A.count
-        })
-        await Bot.look(0, Math.PI / 2)
-        logger.color('green').bold().append('List of items: ').reset().color('green').append(Bottles).log()
-        await Bot.equip(Bottles[0], 'hand')
-        if(Bottles.count >= expBatchSize) {
-            for(let Index = 0; Index < expBatchSize; Index++) {
-                Bot.activateItem()
-                waitForTicks(expTrowSpeed)
-            }
-        }    
-    } else {
-        return false
+/*
+    export async function Exp() {
+        const Bottles = getItems('experience_bottle')
+        if (Bottles.length > 0) {
+            logger.color('green').log('Exp found!')
+            Bottles.sort((A, B) => {
+                logger.log(A.count, B.count)
+                return B.count - A.count
+            })
+            await Bot.look(0, Math.PI / 2)
+            logger.color('green').bold().append('List of items: ').reset().color('green').append(Bottles).log()
+            await Bot.equip(Bottles[0], 'hand')
+            if(Bottles.count >= expBatchSize) {
+                for(let Index = 0; Index < expBatchSize; Index++) {
+                    Bot.activateItem()
+                    Wait(expTrowSpeed)
+                }
+            }    
+        } else {
+            return false
+        }
     }
-}
+*/
 
 // Reafctor the Times count with the real Moss spread Mecanic
 async function Search() {
@@ -300,7 +213,7 @@ async function Fly(User, Msg) {
                 await flyElytra()
                 await elytraTo(Moss.Block.position.offset(0, 1, 0))
                 Bot.physicsEnabled = true
-                await waitForTicks(2)
+                await Wait(2)
                 await Bonemeal(Moss.Block)
             }
         }
@@ -330,7 +243,7 @@ async function flyElytra() {
         await equipElytra()
         await Jump()
         fallFlying()
-        await waitForTicks(1)
+        await Wait(1)
         Bot.physicsEnabled = false
     }
 }
@@ -369,7 +282,7 @@ async function equipElytra() {
 
 async function Jump() {
     Bot.setControlState('jump', true)
-    await waitForTicks(1)
+    await Wait(1)
     Bot.setControlState('jump', false)
 }
 
@@ -395,7 +308,7 @@ async function Square() {
     for (let Angle = 0; Angle < 4; Angle++) {
         for (let Step = 0; Step < 10; Step++) {
             Bot.entity.position.add(Vectors[Angle])
-            await waitForTicks(flyDelay)
+            await Wait(flyDelay)
         }
     }
 }
@@ -420,13 +333,13 @@ async function getPath(Point, Radius) {
         "Parent": undefined
     }
     let Queue = []
+    // Set e non array perchè piu efficiente a confrontare se un elemento c'è gia
     let Explored = new Set()
     Queue.push(First)
 
     for (let Item of Queue) {
         if (Item.Position.equals(Point)) {
             const Coords = []
-
             let Current = Item
             while (Current != undefined) {
                 Coords.push(Current.Position)
@@ -434,10 +347,8 @@ async function getPath(Point, Radius) {
             }
             return Coords
         }
-
         for (const Position of Positions) {
             let nearBlockPos = Item.Position.clone().add(Position).round()
-
             if (isInRange(nearBlockPos, Radius) && !Explored.has(nearBlockPos.toString()) && isValidPos(nearBlockPos)) {
                 Explored.add(nearBlockPos.toString())
                 Queue.push({
@@ -445,9 +356,7 @@ async function getPath(Point, Radius) {
                     "Parent": Item
                 })
             }
-            await waitForTicks(Delay)
         }
-        await waitForTicks(Delay)
     }
 
     return []
@@ -465,7 +374,7 @@ async function botMove(Pos) {
     // Asse Y messo 0.25 perche la hitbox è alta 0.6
     // 0.1 tocca per terra per qualche Motivo
     Bot.entity.position = Pos.offset(0.5, 0.25, 0.5)
-    await waitForTicks(flyDelay)
+    await Wait(flyDelay)
 }
 
 

@@ -3,5 +3,4 @@
 -Block glow with Delta Client
 -Discord Bot
 -Webiste
--Typescript
 -Spezzare i files
