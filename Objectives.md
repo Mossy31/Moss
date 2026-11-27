@@ -1,7 +1,0 @@
--We need to improve the Path Finding system to make it less time consuming or less reosurce consuiming
--We need to make the bot actually bonemeal the blocks
--Block glow with Delta Client
--Discord Bot
--Webiste
--Typescript
--Spezzare i files

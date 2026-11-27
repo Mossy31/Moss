@@ -1,0 +1,35 @@
+{
+	"botName": "Mario",
+	"Auth": "offline",
+	"botVersion": "26.1",
+	"botServer": "localhost",
+	"botPort": 25565,
+
+	"flyDelay": 125,
+
+	"Range": 16,
+    "pathfindingRange": 16,
+	"chunkMinFillPercent": 87.5,
+	"elytraMinDurabilityPercent": 12.5,
+
+	"airBlocksNames": ["air", "void_air", "cave_air"],
+
+	"mossyBlocksNames": [
+		"stone",
+		"granite",
+		"diorite",
+		"andesite",
+		"tuff",
+		"deepslate",
+
+		"dirt",
+		"grass_block",
+		"podzol",
+		"coarse_dirt",
+		"mycelium",
+		"rooted_dirt",
+		"mud",
+		"muddy_mangrove_roots",
+		"pale_moss_block"
+	]
+}
