@@ -1,6 +1,6 @@
 import { Bot } from "mineflayer";
 import { Vec3 } from "vec3";
-import { getBlocksIDs, logError, Wait } from "./Utility.ts";
+import { Utility } from "./Utility.ts";
 import Settings from "./Settings.json" with { type: "json" };
 
 export class Pathfinder {
@@ -9,7 +9,10 @@ export class Pathfinder {
 	private Range: number;
 	constructor(Bot: Bot) {
 		this.Bot = Bot;
-		this.airBlocksIDs = getBlocksIDs(Settings.airBlocksNames, Bot.version);
+		this.airBlocksIDs = Utility.getBlocksIDs(
+			Settings.airBlocksNames,
+			Bot.version,
+		);
 		this.Range = Settings.pathfindingRange;
 	}
 
@@ -81,12 +84,12 @@ export class Pathfinder {
 	async goTo(Point: Vec3) {
 		const Path = this.getPath(Point);
 		if (Path === undefined) {
-			logError("There is no Path");
+			Utility.logError("There is no Path");
 			return;
 		}
 		for (let Position of Path) {
 			this.Bot.entity.position.add(Position);
-			await Wait(Settings.flyDelay);
+			await Utility.Wait(Settings.flyDelay);
 		}
 	}
 }
